@@ -99,22 +99,29 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// --- CREATE IMAGES FOLDER IF DOESN'T EXIST (IMPORTANT for Render) ---
+const app = express();
+
+// ---------- CREATE IMAGES FOLDER ----------
 const imagesDir = path.join(__dirname, "images");
 if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir);
 }
 
-const app = express();
+// ---------- MIDDLEWARE ----------
 app.use(cors({
-    origin: process.env.FRONTEND_ORIGIN || "*"
+    origin: process.env.FRONTEND_ORIGIN || "*",
 }));
 app.use(express.json());
 
-// Serve static images
+// Serve uploaded images
 app.use("/images", express.static(imagesDir));
 
-// DB CONNECTION (Render environment variables)
+// ---------- ROOT TEST ROUTE ----------
+app.get("/", (req, res) => {
+    res.send("Foodie Backend is Running 🚀");
+});
+
+// ---------- DATABASE CONNECTION ----------
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -122,27 +129,30 @@ const db = mysql.createConnection({
     database: process.env.DB_NAME,
     port: process.env.DB_PORT,
     ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false   // Aiven requires SSL
     }
 });
 
-db.connect(err => {
+db.connect((err) => {
     if (err) {
-        console.log(" DB Connection Error:", err);
+        console.error("❌ Database connection failed:", err);
     } else {
-        console.log("Connected to MySQL");
+        console.log("✅ Connected to Aiven MySQL");
     }
 });
 
-// Multer (file upload)
+// ---------- MULTER SETUP ----------
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, imagesDir),
     filename: (req, file, cb) =>
         cb(null, Date.now() + path.extname(file.originalname)),
 });
+
 const upload = multer({ storage });
 
-// --- ROUTES ---
+// ----------------------------------
+// ---------- API ROUTES -----------
+// ----------------------------------
 
 // GET all dishes
 app.get("/dishes", (req, res) => {
@@ -152,19 +162,18 @@ app.get("/dishes", (req, res) => {
     });
 });
 
-// GET one dish
+// GET single dish
 app.get("/dishes/:id", (req, res) => {
     db.query("SELECT * FROM dishes WHERE id = ?", [req.params.id], (err, data) => {
         if (err) return res.status(500).json(err);
-        if (!data.length) return res.status(404).json({ message: "Not found" });
+        if (!data.length) return res.status(404).json({ message: "Dish not found" });
         res.json(data[0]);
     });
 });
 
 // CREATE dish
 app.post("/create", upload.single("image"), (req, res) => {
-    const sql =
-        "INSERT INTO dishes (`name`, `price`, `description`, `image_url`) VALUES (?)";
+    const sql = "INSERT INTO dishes (`name`, `price`, `description`, `image_url`) VALUES (?)";
 
     const imageName = req.file ? req.file.filename : "";
 
@@ -175,24 +184,24 @@ app.post("/create", upload.single("image"), (req, res) => {
         imageName,
     ];
 
-    db.query(sql, [values], (err, data) => {
+    db.query(sql, [values], (err, results) => {
         if (err) return res.status(500).json(err);
-        res.json({ id: data.insertId });
+        res.json({ id: results.insertId });
     });
 });
 
 // UPDATE dish
 app.put("/update/:id", upload.single("image"), (req, res) => {
-    const getSql = "SELECT image_url FROM dishes WHERE id = ?";
-    db.query(getSql, [req.params.id], (err, rows) => {
+    db.query("SELECT image_url FROM dishes WHERE id = ?", [req.params.id], (err, rows) => {
         if (err) return res.status(500).json(err);
-        if (!rows.length) return res.status(404).json({ message: "Not found" });
+        if (!rows.length) return res.status(404).json({ message: "Dish not found" });
 
         const oldImage = rows[0].image_url;
         const newImage = req.file ? req.file.filename : oldImage;
 
-        const updateSql =
+        const sql =
             "UPDATE dishes SET name=?, price=?, description=?, image_url=? WHERE id=?";
+
         const values = [
             req.body.name,
             req.body.price,
@@ -201,22 +210,22 @@ app.put("/update/:id", upload.single("image"), (req, res) => {
             req.params.id,
         ];
 
-        db.query(updateSql, values, (err2, data2) => {
+        db.query(sql, values, (err2, results) => {
             if (err2) return res.status(500).json(err2);
-            res.json({ affectedRows: data2.affectedRows });
+            res.json({ success: true });
         });
     });
 });
 
 // DELETE dish
 app.delete("/delete/:id", (req, res) => {
-    db.query("DELETE FROM dishes WHERE id = ?", [req.params.id], (err, data) => {
+    db.query("DELETE FROM dishes WHERE id = ?", [req.params.id], (err, results) => {
         if (err) return res.status(500).json(err);
-        res.json({ affectedRows: data.affectedRows });
+        res.json({ success: true });
     });
 });
 
-// FEEDBACK
+// FEEDBACK submission
 app.post("/feedback", (req, res) => {
     const sql = "INSERT INTO feedback (`name`, `email`, `message`) VALUES (?)";
     const values = [req.body.name, req.body.email, req.body.message];
@@ -227,8 +236,7 @@ app.post("/feedback", (req, res) => {
     });
 });
 
-// START SERVER
+// ---------- START SERVER ----------
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-    console.log(" Backend running on port " + PORT);
-});
+
+app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
