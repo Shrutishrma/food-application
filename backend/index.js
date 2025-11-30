@@ -51,7 +51,7 @@
 // app.post('/create', upload.single('image'), (req, res) => {
 //     const sql = "INSERT INTO dishes (`name`, `price`, `description`, `image_url`) VALUES (?)";
 //     const image_filename = req.file ? req.file.filename : ""; 
-    
+
 //     const values = [
 //         req.body.name, 
 //         req.body.price, 
@@ -78,7 +78,7 @@
 // app.post('/feedback', (req, res) => {
 //     const sql = "INSERT INTO feedback (`name`, `email`, `message`) VALUES (?)";
 //     const values = [req.body.name, req.body.email, req.body.message];
-    
+
 //     db.query(sql, [values], (err, data) => {
 //         if(err) return res.json("Error");
 //         return res.json({status: "Success", message: "Feedback received!"});
@@ -107,7 +107,7 @@ if (!fs.existsSync(imagesDir)) {
 
 const app = express();
 app.use(cors({
-    origin: process.env.FRONTEND_ORIGIN || "*" 
+    origin: process.env.FRONTEND_ORIGIN || "*"
 }));
 app.use(express.json());
 
@@ -120,14 +120,17 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT,
+    ssl: {
+        rejectUnauthorized: true
+    }
 });
 
 db.connect(err => {
     if (err) {
-        console.log("❌ DB Connection Error:", err);
+        console.log(" DB Connection Error:", err);
     } else {
-        console.log("✅ Connected to MySQL");
+        console.log("Connected to MySQL");
     }
 });
 
