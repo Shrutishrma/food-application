@@ -1,73 +1,200 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from "react";
+import api from "../api";
+import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 
 function Menu() {
   const [dishes, setDishes] = useState([]);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [desc, setDesc] = useState('');
-  const [file, setFile] = useState(null);
 
-  useEffect(() => { fetchDishes(); }, []);
+  // Modal state
+  const [openModal, setOpenModal] = useState(false);
+
+  // Add Dish form states
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [desc, setDesc] = useState("");
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchDishes();
+  }, []);
 
   const fetchDishes = () => {
-    axios.get('http://localhost:8081/dishes')
-      .then(res => setDishes(res.data))
-      .catch(err => console.log(err));
-  }
+    api
+      .get("/dishes")
+      .then((res) => setDishes(res.data))
+      .catch(() => toast.error("Failed to load dishes!"));
+  };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('price', price);
-    formData.append('description', desc);
-    formData.append('image', file);
 
-    axios.post('http://localhost:8081/create', formData)
-      .then(() => { window.location.reload(); })
-      .catch(err => console.log(err));
+    if (!name || !price || !desc || !file) {
+      toast.error("All fields are required!");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("price", price);
+    formData.append("description", desc);
+    formData.append("image", file);
+
+    try {
+      setLoading(true);
+      await api.post("/create", formData);
+      toast.success("Dish added successfully!");
+      fetchDishes();
+      setOpenModal(false);
+
+      // Reset fields
+      setName("");
+      setPrice("");
+      setDesc("");
+      setFile(null);
+      setPreview(null);
+    } catch {
+      toast.error("Failed to add dish.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = (id) => {
-    axios.delete('http://localhost:8081/delete/'+id)
-      .then(() => fetchDishes())
-      .catch(err => console.log(err));
+    if (!window.confirm("Are you sure you want to delete this dish?")) return;
+
+    api
+      .delete(`/delete/${id}`)
+      .then(() => {
+        toast.success("Dish deleted!");
+        fetchDishes();
+      })
+      .catch(() => toast.error("Failed to delete dish"));
   };
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        
-        {/* FORM - Smaller padding and fonts */}
-        <div className="w-full md:w-1/3 bg-white p-4 rounded-lg shadow-md sticky top-4 border-t-4 border-orange-600">
-          <h2 className="text-lg font-bold mb-4 text-gray-800">Add New Item</h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <input type="text" placeholder="Dish Name" className="border p-2 rounded text-sm bg-gray-50 focus:outline-orange-500" onChange={e => setName(e.target.value)} required />
-            <input type="number" placeholder="Price (₹)" className="border p-2 rounded text-sm bg-gray-50 focus:outline-orange-500" onChange={e => setPrice(e.target.value)} required />
-            <input type="file" className="border p-1 rounded text-xs bg-gray-50" onChange={e => setFile(e.target.files[0])} required />
-            <textarea placeholder="Description..." className="border p-2 rounded text-sm bg-gray-50 focus:outline-orange-500" onChange={e => setDesc(e.target.value)} rows="3"/>
-            <button className="bg-orange-600 text-white font-bold py-2 rounded text-sm hover:bg-orange-700 transition">Add to Menu</button>
-          </form>
-        </div>
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Menu</h2>
 
-        {/* LIST - Compact Cards */}
-        <div className="w-full md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {dishes.map((dish) => (
-            <div key={dish.id} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition group">
-              <div className="h-40 overflow-hidden relative">
-                <img src={`http://localhost:8081/images/${dish.image_url}`} alt={dish.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                     onError={(e) => {e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'}}/>
-                <div className="absolute top-2 right-2 bg-white/90 px-2 py-0.5 rounded text-xs font-bold text-gray-800 shadow-sm">₹{dish.price}</div>
-              </div>
-              <div className="p-3">
-                  <h3 className="text-base font-bold text-gray-800">{dish.name}</h3>
-                  <p className="text-gray-500 text-xs mt-1 mb-3 line-clamp-2">{dish.description}</p>
-                  <button onClick={() => handleDelete(dish.id)} className="w-full py-1 border border-red-100 text-red-500 rounded text-xs font-semibold hover:bg-red-50 transition">Remove</button>
+        <button
+          className="bg-green-600 text-white px-4 py-2 rounded"
+          onClick={() => setOpenModal(true)}
+        >
+          + Add Dish
+        </button>
+      </div>
+
+      {/* ADD DISH MODAL */}
+      {openModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+            <h3 className="text-xl font-bold mb-3">Add a New Dish</h3>
+
+            {preview && (
+              <img
+                src={preview}
+                className="w-full h-40 object-cover rounded mb-3"
+                alt="Preview"
+              />
+            )}
+
+            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-3">
+              <input
+                type="text"
+                placeholder="Dish Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="border p-2 w-full"
+                required
+              />
+
+              <input
+                type="number"
+                placeholder="Price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="border p-2 w-full"
+                required
+              />
+
+              <textarea
+                placeholder="Description"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="border p-2 w-full"
+                required
+              />
+
+              <input
+                type="file"
+                onChange={(e) => {
+                  setFile(e.target.files[0]);
+                  setPreview(URL.createObjectURL(e.target.files[0]));
+                }}
+                className="border p-2 w-full"
+                accept="image/*"
+                required
+              />
+
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded w-full"
+                disabled={loading}
+              >
+                {loading ? "Adding..." : "Add Dish"}
+              </button>
+
+              <button
+                type="button"
+                className="bg-gray-400 text-white px-4 py-2 rounded w-full mt-2"
+                onClick={() => setOpenModal(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DISH GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {dishes.map((dish) => (
+          <div key={dish.id} className="bg-white rounded-lg shadow">
+            <img
+              src={
+                dish.image_url
+                  ? dish.image_url
+                  : "https://via.placeholder.com/400x300?text=No+Image"
+              }
+              className="w-full h-40 object-cover"
+            />
+
+            <div className="p-3">
+              <h3 className="font-bold text-lg">{dish.name}</h3>
+              <p className="text-gray-600">{dish.description}</p>
+
+              <div className="flex gap-2 mt-3">
+                <Link
+                  to={`/edit/${dish.id}`}
+                  className="bg-orange-500 text-white px-3 py-1 rounded"
+                >
+                  Edit
+                </Link>
+
+                <button
+                  onClick={() => handleDelete(dish.id)}
+                  className="bg-red-500 text-white px-3 py-1 rounded"
+                >
+                  Delete
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
