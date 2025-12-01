@@ -39,22 +39,22 @@ app.get("/", (req, res) => {
 });
 
 // DATABASE CONNECTION + SSL FIX
+// DATABASE CONNECTION + SSL FIX
 const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
-    waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
-    ssl: {
-        rejectUnauthorized: true,
-        ca: fs.readFileSync(path.join(__dirname, "config", "ca.pem")),
-    },
-    enableKeepAlive: true
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+  waitForConnections: true,
+  connectionLimit: 5,
+  queueLimit: 0,
+  ssl: {
+    rejectUnauthorized: true,
+    ca: process.env.DB_CA
+  },
+  enableKeepAlive: true
 });
-
 
 // GET all dishes
 app.get("/dishes", (req, res) => {
